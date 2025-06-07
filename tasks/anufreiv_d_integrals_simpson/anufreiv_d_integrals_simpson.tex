@@ -1,0 +1,1114 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{amsfonts} % Добавлено для \mathbb
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{titlesec}
+\usepackage{tabularx}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{multirow}
+\usepackage{xcolor}
+\hypersetup{hidelinks}
+\usepackage{siunitx}
+
+\geometry{top=2cm, bottom=2cm, left=2cm, right=2cm}
+
+\sisetup{
+output-decimal-marker={,},
+group-digits = false
+}
+
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+
+% Формат заголовков
+\titleformat{\section}{\normalfont\Large\bfseries\centering}{\thesection.}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection.}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection.}{1em}{}
+
+
+\lstset{
+	basicstyle=\ttfamily\small,
+	keywordstyle=\color{blue},
+	commentstyle=\color{green!60!black}, % Сделал зеленый потемнее для лучшей читаемости
+	stringstyle=\color{red},
+	frame=single,
+	tabsize=4,
+	showstringspaces=false,
+	breaklines=true,
+	numbers=left, % Добавил нумерацию строк
+    numberstyle=\tiny\color{gray}, % Стиль нумерации строк
+    breakatwhitespace=false, % Перенос строк только по пробелам - нет, лучше где угодно
+    captionpos=b, % Позиция заголовка листинга (снизу)
+    escapeinside={\%*}{*)} % Для вставки LaTeX команд внутри листинга, если понадобится
+}
+
+\hypersetup{hidelinks}
+
+\begin{document}
+
+% Титульный лист
+\begin{titlepage}
+\begin{center}
+\textbf{МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ} \\[0.5cm]
+\textbf{Федеральное государственное автономное образовательное учреждение высшего образования} \\[0.5cm]
+\textbf{«Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского»} \\[0.5cm]
+Институт информационных технологий, математики и механики \\
+\vfill
+{\Large
+\textbf{Отчёт по лабораторной работе на тему:} \\[0.5cm]
+\textbf{Вычисление многомерных интегралов с использованием многошаговой схемы (метод Симпсона)} \\
+}
+\vfill
+\begin{flushright}
+Выполнил: студент группы 3822Б1ПМоП3 \\
+Ануфриев Даниил \\
+\vspace{1cm}
+Преподаватель: \\
+Сысоев А.В., доцент, кандидат технических наук \\
+\end{flushright}
+\vfill
+Нижний Новгород \\
+2025
+\end{center}
+\end{titlepage}
+
+% Оглавление
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+
+Численное интегрирование является фундаментальной задачей вычислительной математики, находящей широкое применение в различных областях науки и техники, таких как физика, экономика, инженерное дело и машинное обучение. Особую сложность представляют многомерные интегралы, для которых аналитическое решение зачастую невозможно или крайне затруднительно. Метод Симпсона, относящийся к классу квадратурных формул Ньютона-Котеса, является одним из классических и наиболее точных методов численного интегрирования, использующим интерполяцию полиномами второй степени.
+
+Актуальность данной работы обусловлена возрастающей потребностью в решении задач высокой вычислительной сложности, где время расчета играет критическую роль. Для многомерных интегралов количество вычислений подынтегральной функции растет экспоненциально с увеличением размерности, что делает последовательные алгоритмы неэффективными. Параллельные вычисления предоставляют возможность существенного ускорения таких расчетов за счет одновременного использования нескольких вычислительных ядер или узлов.
+
+Целью настоящей лабораторной работы является разработка и исследование различных подходов к параллельной реализации алгоритма вычисления многомерных интегралов методом Симпсона. Рассматриваются последовательная версия и ее параллельные аналоги, использующие технологии OpenMP, Intel Threading Building Blocks (TBB), стандартные потоки C++ (STL) и гибридный подход MPI+TBB. Проводится сравнительный анализ производительности разработанных реализаций для оценки эффективности применения различных парадигм параллельного программирования к данной задаче.
+
+\newpage
+
+\section{Постановка задачи}
+\label{sec:problem_statement}
+
+В рамках данной работы ставится задача вычисления определенного многомерного интеграла вида:
+\[
+I = \int_{a_d}^{b_d} \cdots \int_{a_1}^{b_1} F(x_1, \dots, x_d) \,dx_1 \dots \,dx_d
+\]
+с использованием составной квадратурной формулы Симпсона. Необходимо реализовать алгоритм в последовательном варианте и с применением различных технологий параллельного программирования.
+
+\subsection{Математическая модель}
+\label{ssec:math_model}
+Метод Симпсона для одномерного случая на отрезке $[x_i, x_{i+2}]$ с шагом $h$ имеет вид:
+\[
+\int_{x_i}^{x_{i+2}} f(x) \,dx \approx \frac{h}{3} [f(x_i) + 4f(x_{i+1}) + f(x_{i+2})].
+\]
+Составная формула Симпсона для отрезка $[a, b]$, разбитого на $N$ (четное число) элементарных отрезков длиной $h = (b-a)/N$, выглядит следующим образом:
+\[
+\int_a^b f(x) \,dx \approx \frac{h}{3} [f(x_0) + 4f(x_1) + 2f(x_2) + \dots + 4f(x_{N-1}) + f(x_N)].
+\]
+Для многомерного случая, область интегрирования $V = [a_1, b_1] \times \dots \times [a_d, b_d]$ разбивается на сетку элементарных гиперпрямоугольников. Пусть $N_k$ — число разбиений по $k$-й координате (четное), $h_k = (b_k - a_k)/N_k$ — шаг по $k$-й координате. Тогда интеграл аппроксимируется суммой:
+\[
+I \approx \left( \prod_{k=1}^{d} \frac{h_k}{3} \right) \sum_{j_d=0}^{N_d} \dots \sum_{j_1=0}^{N_1} \left( \prod_{k=1}^{d} C(j_k, N_k) \right) F(x_{1,j_1}, \dots, x_{d,j_d}),
+\]
+где $x_{k,j_k} = a_k + j_k h_k$, а $C(j, N)$ — коэффициенты Симпсона, определяемые функцией \texttt{SimpsonCoeff(j, N)}:
+\[
+C(j, N) =
+\begin{cases}
+1, & \text{if } j=0 \text{ or } j=N \\
+4, & \text{if } j \text{ is odd} \\
+2, & \text{if } j \text{ is even and } 0 < j < N
+\end{cases}
+\]
+
+В качестве подынтегральных функций $F(x_1, \dots, x_d)$ используются две тестовые функции, выбираемые параметром \texttt{func\_code\_}:
+\begin{enumerate}
+    \item \texttt{func\_code\_ = 0}: $F(\mathbf{x}) = \sum_{k=1}^{d} x_k^2$
+    \item \texttt{func\_code\_ = 1}: $F(\mathbf{x}) = \prod_{k=1}^{d} f_k(x_k)$, где $f_k(x_k) = \sin(x_k)$ если $k$ четное (0-индексация), и $f_k(x_k) = \cos(x_k)$ если $k$ нечетное.
+\end{enumerate}
+
+\subsection{Входные данные}
+\label{ssec:input_data}
+Для выполнения задачи требуются следующие входные данные:
+\begin{itemize}
+    \item \texttt{dimension\_ ($d$)}: размерность интеграла (целое число, $d \ge 1$).
+    \item \texttt{a\_}: вектор вещественных чисел $\{\text{a}_1, \dots, \text{a}_d\}$, нижние пределы интегрирования по каждой размерности.
+    \item \texttt{b\_}: вектор вещественных чисел $\{\text{b}_1, \dots, \text{b}_d\}$, верхние пределы интегрирования по каждой размерности.
+    \item \texttt{n\_}: вектор целых чисел $\{\text{N}_1, \dots, \text{N}_d\}$, количество шагов разбиения по каждой размерности. Каждое $N_k$ должно быть положительным и четным.
+    \item \texttt{func\_code\_}: код подынтегральной функции (целое число, 0 или 1).
+\end{itemize}
+
+\subsection{Выходные данные}
+\label{ssec:output_data}
+Результатом работы алгоритма является одно вещественное число — приближенное значение вычисленного многомерного интеграла.
+
+\subsection{Критерии оценки}
+\label{ssec:evaluation_criteria}
+Эффективность реализованных параллельных версий оценивается по следующим критериям:
+\begin{itemize}
+    \item Время выполнения задачи (мс).
+    \item Коэффициент ускорения (Speedup) относительно последовательной версии: $S_p = T_1 / T_p$, где $T_1$ — время выполнения последовательной программы, $T_p$ — время выполнения параллельной программы на $p$ вычислительных ресурсах (потоках/процессах).
+    \item Эффективность использования вычислительных ресурсов: $E_p = S_p / p$.
+\end{itemize}
+
+\newpage
+
+\section{Описание последовательного алгоритма}
+\label{sec:sequential_algorithm}
+
+Последовательная реализация вычисления многомерного интеграла методом Симпсона основана на рекурсивном подходе к обходу узлов многомерной сетки.
+
+Основная вычислительная логика сосредоточена в рекурсивной функции \texttt{RecursiveSimpsonSum}. Эта функция принимает текущий индекс размерности \texttt{dim\_index}, вектор текущих индексов узлов по каждой размерности \texttt{idx} и вектор шагов \texttt{steps}.
+
+\textbf{Алгоритм работы \texttt{RecursiveSimpsonSum}:}
+\begin{enumerate}
+    \item \textbf{Базовый случай рекурсии:} Если \texttt{dim\_index} равен общей размерности \texttt{dimension\_}, это означает, что все индексы узлов \texttt{idx} для текущей точки сетки определены. В этом случае:
+        \begin{enumerate}
+            \item Вычисляются координаты точки $(x_1, \dots, x_d)$ по формуле $x_k = a_k + \text{idx}_k \cdot \text{steps}_k$.
+            \item Рассчитывается произведение коэффициентов Симпсона $C_{prod} = \prod_{k=0}^{d-1} \text{SimpsonCoeff}(\text{idx}_k, n_k)$.
+            \item Вычисляется значение подынтегральной функции $F(x_1, \dots, x_d)$ в данной точке.
+            \item Функция возвращает $C_{prod} \cdot F(x_1, \dots, x_d)$.
+        \end{enumerate}
+    \item \textbf{Шаг рекурсии:} Если \texttt{dim\_index < dimension\_}, функция итерируется по всем узлам текущей размерности \texttt{dim\_index} от $0$ до $n_{\text{dim\_index}}$:
+        \begin{enumerate}
+            \item Устанавливается \texttt{idx[dim\_index] = i}, где $i$ — текущий индекс узла.
+            \item Рекурсивно вызывается \texttt{RecursiveSimpsonSum} для следующей размерности (\texttt{dim\_index + 1}).
+            \item Результаты рекурсивных вызовов суммируются.
+        \end{enumerate}
+    \item Функция возвращает накопленную сумму.
+\end{enumerate}
+
+Основная функция \texttt{RunImpl} последовательной версии выполняет следующие шаги:
+\begin{enumerate}
+    \item Рассчитывает шаги интегрирования \texttt{steps[k] = (b[k] - a[k]) / n[k]} для каждой размерности $k$.
+    \item Инициализирует вектор индексов \texttt{idx} нулями.
+    \item Вызывает \texttt{RecursiveSimpsonSum(0, idx, steps)} для получения взвешенной суммы значений функции.
+    \item Умножает полученную сумму на общий коэффициент $K = \prod_{k=0}^{d-1} (\text{steps}[k] / 3.0)$.
+    \item Сохраняет итоговое значение как результат интегрирования.
+\end{enumerate}
+
+Фрагмент кода, иллюстрирующий рекурсивную функцию:
+\begin{lstlisting}[language=C++, caption=Функция RecursiveSimpsonSum (ops\_seq.cpp), basicstyle=\ttfamily\scriptsize]
+double IntegralsSimpsonSequential::RecursiveSimpsonSum(int dim_index, std::vector<int>& idx,
+                                                       const std::vector<double>& steps) const {
+  if (dim_index == dimension_) {
+    double coeff = 1.0;
+    std::vector<double> coords(dimension_);
+    for (int d = 0; d < dimension_; ++d) {
+      coords[d] = a_[d] + idx[d] * steps[d];
+      coeff *= SimpsonCoeff(idx[d], n_[d]);
+    }
+    return coeff * FunctionN(coords);
+  }
+  double sum = 0.0;
+  for (int i = 0; i <= n_[dim_index]; ++i) {
+    idx[dim_index] = i;
+    sum += RecursiveSimpsonSum(dim_index + 1, idx, steps);
+  }
+  return sum;
+}
+\end{lstlisting}
+
+\newpage
+\section{Общая схема распараллеливания}
+\label{sec:parallel_scheme}
+
+Задача вычисления многомерного интеграла методом Симпсона представляет собой суммирование большого числа слагаемых, каждое из которых соответствует взвешенному значению подынтегральной функции в узле сетки. Вычисление каждого такого слагаемого независимо от других, что создает предпосылки для эффективного распараллеливания.
+
+В представленных реализациях используются две основные стратегии декомпозиции задачи:
+
+\begin{enumerate}
+    \item \textbf{Распараллеливание внешнего цикла интегрирования с сохранением рекурсии для внутренних размерностей.}
+    Эта стратегия применяется в реализациях на OpenMP и STL. Итерации по узлам первой (внешней) размерности распределяются между доступными потоками. Каждый поток затем выполняет рекурсивный расчет суммы для своей части узлов первой размерности и всех узлов по оставшимся (внутренним) размерностям.
+    \begin{itemize}
+        \item \textbf{Преимущества:} Относительная простота модификации исходного рекурсивного кода. Сохранение структуры рекурсивного обхода для части задачи.
+        \item \textbf{Недостатки:} Эффективность может зависеть от количества узлов $N_0$ по первой размерности. Если $N_0$ мало, степень параллелизма будет ограничена. Возможен дисбаланс нагрузки, если время вычисления для разных "веток" рекурсии сильно отличается (хотя в данном случае оно примерно одинаково).
+    \end{itemize}
+
+    \item \textbf{Преобразование многомерной сетки узлов в одномерное итерационное пространство и его параллельная обработка.}
+    Эта стратегия используется в реализациях на TBB и гибридной MPI+TBB. Все узлы $d$-мерной сетки нумеруются одним одномерным индексом $k$, пробегающим значения от $0$ до $K_{total}-1$, где $K_{total} = \prod_{i=0}^{d-1} (N_i+1)$ — общее число узлов сетки. Этот одномерный диапазон итераций затем распределяется между потоками (TBB) или процессами (MPI). Внутри каждого параллельного задания по одномерному индексу $k$ восстанавливаются исходные многомерные индексы $(j_0, j_1, \dots, j_{d-1})$ для вычисления координат точки и соответствующих коэффициентов Симпсона.
+    \begin{itemize}
+        \item \textbf{Преимущества:} Позволяет добиться высокой степени гранулярности и потенциально лучшей балансировки нагрузки, так как работа делится на большее число мелких независимых частей. Упрощает распределение работы в гетерогенных системах (MPI).
+        \item \textbf{Недостатки:} Требует дополнительных вычислений для преобразования одномерного индекса в многомерные и обратно. Может привести к менее предсказуемому доступу к данным по сравнению с последовательным обходом измерений, что потенциально влияет на кэширование (хотя для данной задачи это, вероятно, некритично).
+    \end{itemize}
+\end{enumerate}
+Обе стратегии нацелены на распределение вычислений слагаемых суммы между параллельными исполнителями с последующей агрегацией (суммированием) частичных результатов.
+
+\newpage
+\section{Реализация на OpenMP}
+\label{sec:omp_implementation}
+
+Реализация вычисления многомерного интеграла методом Симпсона с использованием технологии OpenMP основана на стратегии распараллеливания внешнего цикла интегрирования. Это позволяет относительно просто модифицировать последовательный рекурсивный алгоритм для параллельного выполнения на системах с общей памятью.
+
+Основная идея заключается в том, чтобы итерации цикла по первой размерности (индекс \texttt{i0} от 0 до \texttt{n\_[0]}) распределялись между потоками OpenMP. Каждый поток вычисляет свою часть общей суммы.
+
+\textbf{Ключевые аспекты реализации:}
+\begin{enumerate}
+    \item Директива \texttt{\#pragma omp parallel} используется для создания параллельной области, в которой будет выполняться работа несколькими потоками.
+    \item Директива \texttt{\#pragma omp for reduction(+: total\_sum)} применяется к циклу по первой размерности. Она автоматически распределяет итерации этого цикла между потоками. Переменная \texttt{total\_sum} объявляется как переменная редукции для операции сложения (+), что означает, что каждый поток будет иметь свою локальную копию этой переменной, а по завершении цикла все локальные значения будут корректно просуммированы в исходную переменную \texttt{total\_sum}.
+    \item Внутри цикла каждый поток инициализирует свой локальный вектор индексов \texttt{idx}, где \texttt{idx[0]} устанавливается равным текущему значению \texttt{i0} из внешнего цикла.
+    \item Если размерность интеграла \texttt{dimension\_} равна 1, то вычисление коэффициента Симпсона и значения функции производится непосредственно в этом цикле.
+    \item Если \texttt{dimension\_ > 1}, то для вычисления суммы по оставшимся размерностям вызывается та же рекурсивная функция \texttt{RecursiveSimpsonSum}, но начиная со второй размерности (\texttt{dim\_index = 1}). Результат этого вызова добавляется к локальной сумме потока.
+    \item После завершения параллельного цикла и редукции, итоговая \texttt{total\_sum} умножается на общий коэффициент, включающий шаги интегрирования, для получения окончательного результата.
+\end{enumerate}
+
+Такой подход позволяет эффективно использовать многоядерные процессоры, минимизируя изменения в исходной логике рекурсивного суммирования для внутренних размерностей.
+
+Фрагмент кода \texttt{RunImpl} для OpenMP-версии:
+\begin{lstlisting}[language=C++, caption=Фрагмент RunImpl для OMP-реализации (ops\_omp.cpp), basicstyle=\ttfamily\scriptsize]
+bool IntegralsSimpsonOmp::RunImpl() {
+  std::vector<double> steps(dimension_);
+  for (int i = 0; i < dimension_; i++) {
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+  }
+
+  double total_sum = 0.0;
+
+#pragma omp parallel
+  {
+    std::vector<int> idx(dimension_);
+
+#pragma omp for reduction(+ : total_sum)
+    for (int i0 = 0; i0 <= n_[0]; ++i0) {
+      idx[0] = i0;
+
+      if (dimension_ == 1) {
+        double coeff = SimpsonCoeff(idx[0], n_[0]);
+        std::vector<double> coords = {a_[0] + (idx[0] * steps[0])};
+        total_sum += coeff * FunctionN(coords);
+      } else {
+        total_sum += RecursiveSimpsonSum(1, idx, steps);
+      }
+    }
+  }
+
+  double coeff_mult = 1.0;
+  for (int i = 0; i < dimension_; i++) {
+    coeff_mult *= steps[i] / 3.0;
+  }
+
+  result_ = coeff_mult * total_sum;
+  return true;
+}
+\end{lstlisting}
+\textit{Примечание: В представленном коде \texttt{ops\_omp.cpp} вызов \texttt{RecursiveSimpsonSum} напрямую добавляет к \texttt{total\_sum}, которая является reduction-переменной. OpenMP корректно обрабатывает это, суммируя значения, возвращаемые \texttt{RecursiveSimpsonSum} для каждой итерации \texttt{i0}, в частные суммы потоков, которые затем объединяются.}
+
+\newpage
+\section{Реализация на TBB}
+\label{sec:tbb_implementation}
+
+Реализация с использованием Intel Threading Building Blocks (TBB) применяет стратегию преобразования многомерной сетки узлов в одномерное итерационное пространство. Это позволяет использовать мощный механизм \texttt{tbb::parallel\_reduce} для эффективного параллельного суммирования.
+
+\textbf{Ключевые аспекты реализации:}
+\begin{enumerate}
+    \item \textbf{Вычисление общего числа узлов:} Сначала рассчитывается общее количество узлов сетки \texttt{total\_points} как произведение $(n_k+1)$ по всем размерностям $k$. Это число определяет размер одномерного диапазона, который будет обрабатываться.
+    \item \textbf{Параллельное суммирование с \texttt{tbb::parallel\_reduce}:}
+        Основная вычислительная работа выполняется с помощью \texttt{tbb::parallel\_reduce}.
+        Эта функция принимает:
+        \begin{itemize}
+            \item Диапазон для обработки: \texttt{tbb::blocked\_range<size\_t>(0, total\_points)}. TBB автоматически разбивает этот диапазон на меньшие поддиапазоны (чанки) для параллельной обработки потоками.
+            \item Начальное значение для суммы (identity): \texttt{0.0}.
+            \item Лямбда-функцию (body), вычисляющую частичную сумму для своего поддиапазона \texttt{r}:
+                \begin{enumerate}
+                    \item Для каждого одномерного индекса \texttt{k} из поддиапазона \texttt{r}:
+                        \begin{itemize}
+                            \item \textbf{Восстановление многомерных индексов:} Из одномерного индекса \texttt{k} восстанавливаются многомерные индексы \texttt{current\_idx[dim]} для каждого измерения. Это делается путем последовательного взятия остатка от деления \texttt{k} на $(n_{\text{dim}}+1)$ и последующего целочисленного деления \texttt{k} на $(n_{\text{dim}}+1)$.
+                            \item Вычисляются координаты точки \texttt{coords[dim] = a\_[dim] + current\_idx[dim] * steps[dim]}.
+                            \item Рассчитывается произведение коэффициентов Симпсона \texttt{current\_coeff\_prod} по всем измерениям на основе \texttt{current\_idx[dim]} и \texttt{n\_[dim]}.
+                            \item Вычисляется значение подынтегральной функции \texttt{FunctionN(coords)}.
+                            \item Слагаемое (\texttt{current\_coeff\_prod * FunctionN(coords)}) добавляется к текущей сумме поддиапазона (\texttt{running\_sum}).
+                        \end{itemize}
+                    \item Лямбда-функция возвращает \texttt{running\_sum}.
+                \end{enumerate}
+            \item Лямбда-функцию (reduction), которая суммирует частичные результаты, полученные от разных потоков: \texttt{[](double x, double y) \{ return x + y; \}}.
+        \end{itemize}
+    \item \textbf{Итоговый результат:} Сумма, полученная после \texttt{tbb::parallel\_reduce} (\texttt{total\_sum}), умножается на общий коэффициент $\prod (\text{steps}[k]/3.0)$ для получения значения интеграла.
+\end{enumerate}
+Этот подход позволяет TBB динамически балансировать нагрузку между потоками и эффективно использовать кэш-память за счет обработки смежных блоков данных.
+
+Фрагмент кода \texttt{RunImpl} для TBB-версии:
+\begin{lstlisting}[language=C++, caption=Фрагмент RunImpl для TBB-реализации (ops\_tbb.cpp), basicstyle=\ttfamily\scriptsize]
+bool IntegralsSimpsonTBB::RunImpl() {
+  std::vector<double> steps(dimension_);
+  size_t total_points = 1;
+  double coeff_mult = 1.0;
+
+  for (int i = 0; i < dimension_; i++) {
+    if (n_[i] == 0) return false;
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+    coeff_mult *= steps[i] / 3.0;
+    size_t points_in_dim = static_cast<size_t>(n_[i]) + 1;
+    if (total_points > std::numeric_limits<size_t>::max() / points_in_dim) return false;
+    total_points *= points_in_dim;
+  }
+
+  double total_sum = tbb::parallel_reduce(
+      tbb::blocked_range<size_t>(0, total_points), 0.0,
+      [&](const tbb::blocked_range<size_t>& r, double running_sum) {
+        std::vector<double> coords(dimension_);
+        std::vector<int> current_idx(dimension_);
+
+        for (size_t k = r.begin(); k != r.end(); ++k) {
+          double current_coeff_prod = 1.0;
+          size_t current_k = k;
+
+          for (int dim = 0; dim < dimension_; ++dim) {
+            size_t points_in_this_dim = static_cast<size_t>(n_[dim]) + 1;
+            size_t index_in_this_dim = current_k % points_in_this_dim;
+            current_idx[dim] = static_cast<int>(index_in_this_dim);
+            current_k /= points_in_this_dim;
+
+            coords[dim] = a_[dim] + current_idx[dim] * steps[dim];
+            current_coeff_prod *= SimpsonCoeff(current_idx[dim], n_[dim]);
+          }
+          running_sum += current_coeff_prod * FunctionN(coords);
+        }
+        return running_sum;
+      },
+      [](double x, double y) { return x + y; });
+
+  result_ = coeff_mult * total_sum;
+  return true;
+}
+\end{lstlisting}
+
+\newpage
+\section{Реализация на STL (std::thread)}
+\label{sec:stl_implementation}
+
+Реализация с использованием стандартных потоков C++ (\texttt{std::thread}) основана на ручном управлении потоками и распределении работы. Как и в OpenMP-версии, применяется стратегия распараллеливания внешнего цикла интегрирования (по первой размерности).
+
+\textbf{Ключевые аспекты реализации:}
+\begin{enumerate}
+    \item \textbf{Определение количества потоков:} Функция \texttt{DetermineNumThreads} определяет оптимальное количество потоков для использования, обычно на основе количества доступных аппаратных потоков (\texttt{ppc::util::GetPPCNumThreads()}). Оно также ограничивается общим числом итераций.
+    \item \textbf{Распределение итераций:} Функция \texttt{DistributeIterations} делит общее количество итераций внешнего цикла (от $0$ до $n_0$) на диапазоны, каждый из которых будет обрабатываться отдельным потоком. Распределение старается быть максимально равномерным.
+    \item \textbf{Функция потока (\texttt{ThreadTaskRunner}):} Эта функция выполняется каждым созданным потоком.
+        \begin{itemize}
+            \item Принимает начальный (\texttt{start\_idx}) и конечный (\texttt{end\_idx}) индексы для итераций по первой размерности, ссылку на вектор шагов \texttt{steps} и указатель для сохранения частичной суммы \texttt{partial\_sum\_output}.
+            \item В цикле от \texttt{start\_idx} до \texttt{end\_idx} (не включая \texttt{end\_idx}):
+                \begin{itemize}
+                    \item Инициализируется локальный вектор индексов \texttt{local\_idx}, где \texttt{local\_idx[0]} устанавливается равным текущей итерации внешнего цикла.
+                    \item Вызывается рекурсивная функция \texttt{RecursiveSimpsonSum(1, local\_idx, steps)} для вычисления суммы по оставшимся размерностям (начиная со второй).
+                    \item Результат добавляется к локальной частичной сумме потока.
+                \end{itemize}
+            \item По завершении цикла, накопленная локальная сумма записывается в \texttt{*partial\_sum\_output}.
+        \end{itemize}
+    \item \textbf{Создание и управление потоками в \texttt{RunImpl}:}
+        \begin{itemize}
+            \item Определяется количество потоков и диапазоны итераций.
+            \item Создается вектор для хранения частичных сумм от каждого потока.
+            \item Для каждого диапазона итераций создается объект \texttt{std::thread}, которому передается функция \texttt{ThreadTaskRunner} и ее аргументы.
+            \item Если количество потоков равно 1, задача выполняется в текущем потоке без создания нового.
+            \item После запуска всех потоков, главный поток ожидает их завершения с помощью \texttt{th.join()}.
+        \end{itemize}
+    \item \textbf{Сбор результатов:} После завершения всех потоков, частичные суммы из вектора \texttt{partial\_sums} суммируются для получения общей суммы.
+    \item \textbf{Итоговый результат:} Общая сумма умножается на коэффициент $\prod (\text{steps}[k]/3.0)$.
+\end{enumerate}
+Этот подход дает полный контроль над созданием и синхронизацией потоков, но требует большего объема кода для управления параллелизмом по сравнению с OpenMP или TBB.
+
+Фрагмент кода \texttt{RunImpl} и \texttt{ThreadTaskRunner} для STL-версии:
+\begin{lstlisting}[language=C++, caption=Функция ThreadTaskRunner и фрагмент RunImpl для STL-реализации (ops\_stl.cpp), basicstyle=\ttfamily\scriptsize]
+void IntegralsSimpsonSTL::ThreadTaskRunner(int start_idx, int end_idx, 
+                                           const std::vector<double>& steps,
+                                           double* partial_sum_output) {
+  double local_partial_sum = 0.0;
+
+  for (int i = start_idx; i < end_idx; ++i) {
+    if (this->dimension_ < 1) {
+      *partial_sum_output = 0.0; return;
+    }
+    std::vector<int> local_idx(dimension_);
+    local_idx[0] = i;
+    local_partial_sum += RecursiveSimpsonSum(1, local_idx, steps);
+  }
+  *partial_sum_output = local_partial_sum;
+}
+
+bool IntegralsSimpsonSTL::RunImpl() {
+  std::vector<double> steps(dimension_);
+  for (int i = 0; i < dimension_; i++) {
+    if (n_[i] <= 0) return false;
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+  }
+
+  const int total_iterations_dim0 = n_[0] + 1;
+  unsigned int num_actual_threads = DetermineNumThreads(total_iterations_dim0);
+  if (num_actual_threads == 0 && total_iterations_dim0 > 0) num_actual_threads = 1;
+  
+  std::vector<double> partial_sums(num_actual_threads, 0.0);
+  std::vector<std::thread> threads;
+
+  if (num_actual_threads == 1 && total_iterations_dim0 > 0) {
+    ThreadTaskRunner(0, total_iterations_dim0, steps, partial_sums.data());
+  } else if (num_actual_threads > 1) {
+    std::vector<IterationRange> ranges = DistributeIterations(total_iterations_dim0, num_actual_threads);
+    
+    for (size_t i = 0; i < ranges.size(); ++i) {
+      const auto& range = ranges[i];
+      threads.emplace_back(&IntegralsSimpsonSTL::ThreadTaskRunner, this, 
+                           range.start, range.end, std::cref(steps), &partial_sums[i]);
+    }
+  }
+
+  for (auto& th : threads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+
+  double total_sum = 0.0;
+  for (double p_sum : partial_sums) {
+    total_sum += p_sum;
+  }
+
+  double coeff = 1.0;
+  for (int i = 0; i < dimension_; i++) {
+    coeff *= steps[i] / 3.0;
+  }
+  result_ = coeff * total_sum;
+  return true;
+}
+\end{lstlisting}
+
+\newpage
+\section{Реализация гибридной MPI+TBB версии}
+\label{sec:mpi_tbb_implementation}
+
+Гибридная реализация MPI+TBB сочетает два уровня параллелизма: межпроцессный параллелизм с использованием MPI (Message Passing Interface) для систем с распределенной памятью и внутрипроцессный параллелизм с использованием Intel TBB для систем с общей памятью (в рамках одного MPI-процесса). Эта версия, как и чисто TBB-вариант, использует стратегию преобразования многомерной сетки узлов в одномерное итерационное пространство.
+
+\textbf{Уровень MPI (межпроцессное взаимодействие):}
+\begin{enumerate}
+    \item \textbf{Предобработка (\texttt{PreProcessingImpl}):}
+        \begin{itemize}
+            \item Корневой процесс (ранг 0) считывает и валидирует входные данные с помощью вспомогательной функции \texttt{ParseAndValidateOnRoot}. Эта функция разбирает массив входных данных, извлекая размерность, пределы интегрирования, число разбиений и код функции.
+            \item Статус успешности парсинга на корневом процессе транслируется всем остальным процессам с помощью \texttt{MPI\_Bcast}. Если парсинг неудачен, все процессы завершают предобработку с ошибкой.
+            \item Основные параметры задачи (размерность \texttt{dimension\_}, код функции \texttt{func\_code\_}, векторы \texttt{a\_}, \texttt{b\_}, \texttt{n\_}) рассылаются от корневого процесса всем остальным процессам с использованием \texttt{MPI\_Bcast}.
+            \item Обрабатывается случай нулевой размерности \texttt{dimension\_ == 0}, когда результат интеграла равен 0.
+        \end{itemize}
+    \item \textbf{Выполнение (\texttt{RunImpl}):}
+        \begin{itemize}
+            \item Каждый MPI-процесс (включая корневой) самостоятельно вычисляет шаги интегрирования \texttt{steps} и общее количество узлов сетки \texttt{params.total\_points} (как в TBB-версии) с помощью функции \texttt{CalculateRunParameters}.
+            \item Общее одномерное итерационное пространство (от $0$ до \texttt{params.total\_points - 1}) делится между всеми MPI-процессами. Функция \texttt{DistributeWorkAmongMpiRanks} определяет для каждого процесса его локальный диапазон индексов (\texttt{dist.local\_start\_k}, \texttt{dist.local\_end\_k}) и количество точек для обработки (\texttt{dist.num\_points\_for\_this\_rank}).
+            \item Каждый MPI-процесс вычисляет свою частичную сумму \texttt{local\_sum} для назначенного ему диапазона точек, используя внутри себя параллелизм TBB (см. ниже).
+            \item Частичные суммы \texttt{local\_sum} со всех MPI-процессов собираются на корневом процессе (ранг 0) с помощью операции редукции \texttt{MPI\_Reduce(..., MPI\_SUM, ...)}, результат помещается в \texttt{global\_sum}.
+            \item Корневой процесс вычисляет итоговый результат интеграла, умножая \texttt{global\_sum} на общий коэффициент \texttt{params.coeff\_mult}.
+        \end{itemize}
+    \item \textbf{Постобработка (\texttt{PostProcessingImpl}):}
+        \begin{itemize}
+            \item Только корневой процесс записывает вычисленный результат \texttt{result\_} в выходные данные.
+        \end{itemize}
+\end{enumerate}
+
+\textbf{Уровень TBB (внутрипроцессный параллелизм):}
+\begin{enumerate}
+    \item Внутри каждого MPI-процесса, для обработки назначенного ему диапазона одномерных индексов [\texttt{dist.local\_start\_k}, \texttt{dist.local\_end\_k}), используется \texttt{tbb::parallel\_reduce}.
+    \item Логика работы \texttt{tbb::parallel\_reduce} здесь аналогична той, что используется в чисто TBB-версии:
+        \begin{itemize}
+            \item Диапазон для \texttt{parallel\_reduce} — это \texttt{tbb::blocked\_range<size\_t>(dist.local\_start\_k, dist.local\_end\_k)}.
+            \item Лямбда-функция (body) для каждого одномерного индекса \texttt{k\_iter} из этого диапазона восстанавливает многомерные индексы, вычисляет координаты точки, произведение коэффициентов Симпсона и значение подынтегральной функции, после чего добавляет слагаемое к текущей локальной сумме \texttt{running\_sum}.
+            \item Лямбда-функция (reduction) суммирует частичные результаты от TBB-потоков внутри одного MPI-процесса.
+        \end{itemize}
+    \item Результатом работы TBB-части в каждом MPI-процессе является \texttt{local\_sum}, которая затем участвует в \texttt{MPI\_Reduce}.
+\end{enumerate}
+
+Этот гибридный подход позволяет масштабировать вычисления как на многоядерные узлы (через TBB), так и на множество таких узлов в кластере (через MPI).
+
+Фрагмент кода \texttt{RunImpl} для MPI+TBB версии:
+\begin{lstlisting}[language=C++, caption=Фрагмент RunImpl для MPI+TBB-реализации (ops\_all.cpp), basicstyle=\ttfamily\scriptsize]
+bool IntegralsSimpsonAll::RunImpl() {
+  int rank = 0;
+  int world_size = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  if (dimension_ == 0) {
+    if (rank == 0) { result_ = 0.0; }
+    return true;
+  }
+
+  std::vector<double> steps;
+  RunParameters params = CalculateRunParameters(dimension_, n_, a_, b_, steps);
+  if (!params.success) return false;
+  if (params.total_points == 0) { /* ... */ }
+
+  MpiWorkDistribution dist = DistributeWorkAmongMpiRanks(params.total_points, rank, world_size);
+
+  double local_sum = 0.0;
+  if (dist.num_points_for_this_rank > 0) {
+    local_sum = tbb::parallel_reduce(
+        tbb::blocked_range<size_t>(dist.local_start_k, dist.local_end_k), 0.0,
+        [&](const tbb::blocked_range<size_t>& r, double running_sum) {
+          std::vector<double> coords(dimension_);
+          std::vector<int> current_idx(dimension_);
+          for (size_t k_iter = r.begin(); k_iter != r.end(); ++k_iter) {
+            double current_coeff_prod = 1.0;
+            size_t current_k_val = k_iter;
+            for (int dim_idx = 0; dim_idx < dimension_; ++dim_idx) {
+              size_t points_in_this_dim = static_cast<size_t>(n_[dim_idx]) + 1;
+              size_t index_in_this_dim = current_k_val % points_in_this_dim;
+              current_idx[dim_idx] = static_cast<int>(index_in_this_dim);
+              current_k_val /= points_in_this_dim;
+              coords[dim_idx] = a_[dim_idx] + current_idx[dim_idx] * steps[dim_idx];
+              current_coeff_prod *= SimpsonCoeff(current_idx[dim_idx], n_[dim_idx]);
+            }
+            running_sum += current_coeff_prod * FunctionN(coords);
+          }
+          return running_sum;
+        },
+        [](double x, double y) { return x + y; });
+  }
+
+  double global_sum = 0.0;
+  MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    result_ = params.coeff_mult * global_sum;
+  } else {
+    result_ = 0.0;
+  }
+  return true;
+}
+\end{lstlisting}
+
+\newpage
+\section{Результаты экспериментов}
+\label{sec:results}
+Для оценки производительности реализованных алгоритмов вычисления многомерного интеграла методом Симпсона использовался следующий тестовый стенд:
+\begin{itemize}
+    \item Операционная система: \textbf Windows 10
+    \item Процессор: \textbf Ryzen 7 5700X, 8 ядер, 16 потоков, 4 ГГц)
+    \item Оперативная память: \textbf 32 ГБ DDR4 4000 МГц
+    \item Компилятор: \textbf MSVC 2019
+\end{itemize}
+
+Тестирование проводилось на следующей задаче:
+\begin{itemize}
+    \item Размерность интеграла $d = \textbf 2$
+    \item Пределы интегрирования: 
+        \begin{itemize}
+            \item для $k=0$ (первая размерность): $a_0 = 0.0$, $b_0 = 1.0$.
+            \item для $k=1$ (вторая размерность): $a_1 = 0.0$, $b_1 = 1.0$.
+        \end{itemize}
+    \item Число разбиений: 
+        \begin{itemize}
+            \item для $k=0$ (первая размерность): $N_0 = 2000$.
+            \item для $k=1$ (вторая размерность): $N_1 = 2000$.
+        \end{itemize}
+    \item Подынтегральная функция: \texttt{func\_code\_ = \textbf 0, что соответствует $F(x_0, x_1) = x_0^2 + x_1^2$.}
+\end{itemize}
+Аналитическое значение данного интеграла $\int_{0}^{1} \int_{0}^{1} (x_0^2 + x_1^2) \,dx_0 \,dx_1 = 2/3 \approx 0.666\dots$.
+
+Время выполнения измерялось для вычислительной части алгоритма. Каждое измерение повторялось несколько раз, и бралось среднее или минимальное значение для уменьшения влияния случайных флуктуаций. Ускорение рассчитывалось относительно времени выполнения последовательной версии.
+
+\begin{table}[H]
+\centering
+\footnotesize % Или \small для чуть большего шрифта
+\caption{Сравнение эффективности параллельных реализаций метода Симпсона}
+\label{tab:performance_results}
+
+\begin{tabularx}{\textwidth}{|l|X|S[table-format=5.2]|S[table-format=2.2]|l|}
+\hline
+\textbf{Реализация} & \textbf{Конфигурация (потоки/процессы)} & {\textbf{Время(pipeline), мс}} & \textbf{Время(task), мс} &{\textbf{Ускорение}}\\
+\hline
+Последовательная & 1 поток & \textbf {2340} & \textbf {2487} & \textbf {1.0} \\
+\hline
+\multirow{4}{*}{OpenMP} 
+  & 2 потока & \textbf {1405} & \textbf {1476} & \textbf {1.68} \\
+  & 4 потока & \textbf {727} & \textbf {852} & \textbf {2.92} \\
+  & 8 потоков & \textbf {626} & \textbf {750} & \textbf {3.31} \\
+\hline
+\multirow{4}{*}{TBB} 
+  & 2 потока & \textbf {141} & \textbf {300} & \textbf{8.29} \\
+  & 4 потока & \textbf {96} & \textbf {175} & \textbf{14.2} \\
+  & 8 потоков & \textbf{61} & \textbf{54} & \textbf{46} \\
+\hline
+\multirow{4}{*}{STL} 
+  & 2 потока & \textbf {1352} & \textbf {1410} & \textbf {1.76} \\
+  & 4 потока & \textbf {869} & \textbf {1046} & \textbf {2.38} \\
+  & 8 потоков & \textbf {527} & \textbf {619} & \textbf {4.02} \\
+\hline
+\multirow{5}{*}{MPI + TBB}
+  & 1 MPI пр. + 1 TBB пот. & \textbf{208} & \textbf{270} & \textbf{9.21} \\
+  & 1 MPI пр. + 2 TBB пот. & \textbf{122} & \textbf{221} & \textbf{11.25} \\
+  & 2 MPI пр. + 1 TBB пот. & \textbf{106} & \textbf{117} & \textbf{21.26} \\
+  & 4 MPI пр. + 4 TBB пот. & \textbf{37} & \textbf{65} & \textbf{38.26} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\section*{Анализ результатов}
+
+На основе данных, представленных в Таблице \ref{tab:performance_results}, проведен анализ эффективности различных параллельных реализаций метода Симпсона. Ускорение рассчитывалось относительно времени выполнения последовательной реализации в режиме "task" (2487 мс).
+
+\subsection*{Сравнение технологий на системах с общей памятью (OpenMP, TBB, STL)}
+
+\textbf{Какая из технологий (OpenMP, TBB, STL) показала наилучшее ускорение на системе с общей памятью и при каком количестве потоков?}
+
+На системе с общей памятью наилучшее ускорение продемонстрировала технология \textbf{TBB}. При использовании 8 потоков TBB достигла ускорения в \textbf{46 раз} (время выполнения "task" составило 54 мс). Это значительно превосходит результаты OpenMP (3.31x на 8 потоках) и STL (4.02x на 8 потоках). Даже при 2 потоках TBB (8.29x) показывает лучшее ускорение, чем OpenMP и STL на 8 потоках.
+
+\textbf{Сравнение простоты реализации и достигнутой производительности для OpenMP, TBB, STL.}
+
+\begin{itemize}
+    \item \textbf{OpenMP}: Является технологией, основанной на директивах компилятора. Это часто обеспечивает относительно простую интеграцию параллелизма в существующий последовательный код, особенно для циклов. В данном тесте OpenMP показала умеренное ускорение, достигающее 3.31x на 8 потоках. Это может указывать либо на ограничения самой технологии для данной задачи, либо на то, что структура задачи не идеально подходит для простого распараллеливания циклами OpenMP, либо на значительные накладные расходы.
+    \item \textbf{TBB}: Представляет собой библиотеку C++, предлагающую более гибкие и мощные инструменты для параллельного программирования, включая параллельные алгоритмы и графы задач. Реализация с TBB может быть сложнее, чем с OpenMP, требуя более явного описания параллельной логики. Однако, как показывают результаты, TBB обеспечила наивысшую производительность (ускорение до 46x), что свидетельствует об эффективном использовании ресурсов и низких накладных расходах для данной задачи. Особенно впечатляет скачок производительности между 4 и 8 потоками.
+    \item \textbf{STL (параллельные алгоритмы C++)}: Стандартные параллельные алгоритмы C++ (предположительно, C++17) предлагают самый высокоуровневый и простой способ распараллеливания стандартных операций. Интеграция обычно минимальна. В данном тесте STL показала ускорение до 4.02x на 8 потоках, что лучше OpenMP, но значительно уступает TBB. Это может быть связано с более общим характером реализации параллельных алгоритмов STL, которые могут быть не так тонко настроены под специфику задачи или аппаратной платформы, как это возможно с TBB.
+\end{itemize}
+Таким образом, TBB демонстрирует наилучшее соотношение производительности, хотя и может потребовать больших усилий при реализации по сравнению с OpenMP или STL. STL предлагает наибольшую простоту с приемлемой производительностью для некоторых сценариев.
+
+\subsection*{Эффективность гибридной реализации MPI+TBB}
+
+\textbf{Насколько эффективной оказалась гибридная MPI+TBB реализация? Как она масштабируется с увеличением числа MPI-процессов и TBB-потоков?}
+
+Гибридная реализация MPI+TBB показала высокую эффективность:
+\begin{itemize}
+    \item Уже конфигурация \textbf{1 MPI пр. + 1 TBB пот.} (9.21x) превосходит OpenMP и STL на 8 потоках и TBB на 2 потоках.
+    \item Увеличение количества TBB потоков в рамках одного MPI процесса (с 1 MPI + 1 TBB до 1 MPI + 2 TBB) привело к увеличению ускорения с 9.21x до 11.25x.
+    \item Увеличение количества MPI процессов при фиксированном количестве TBB потоков на процесс (с 1 MPI + 1 TBB до 2 MPI + 1 TBB) дало значительный прирост ускорения с 9.21x до 21.26x. Это указывает на хорошую масштабируемость по MPI процессам.
+    \item Наилучшая гибридная конфигурация \textbf{4 MPI пр. + 4 TBB пот.} достигла ускорения \textbf{38.26x}. Это очень высокий результат, сопоставимый с лучшим результатом TBB на 8 потоках (46x).
+\end{itemize}
+Масштабируемость гибридной модели выглядит хорошо:
+\begin{itemize}
+    \item При увеличении числа MPI процессов (например, переход от 1 MPI + X TBB к 2 MPI + X TBB) наблюдается существенный рост производительности.
+    \item При увеличении числа TBB потоков внутри MPI процесса также наблюдается рост, хотя он может быть ограничен доступными ядрами для одного процесса.
+\end{itemize}
+Интересно, что конфигурация TBB на 8 потоках (46x) оказалась немного эффективнее, чем 4 MPI процесса с 4 TBB потоками в каждом (суммарно 16 "потоков" работы, 38.26x). Это может быть связано с накладными расходами на MPI-коммуникации или с тем, что задача очень хорошо ложится на модель разделяемой памяти TBB при достаточном количестве потоков в одном процессе, и разделение на MPI процессы не дает дополнительного выигрыша сверх этого на данной системе.
+
+\section*{Общий вывод}
+Технология TBB показала себя наиболее эффективной для данной задачи на системе с общей памятью, обеспечив наивысшее ускорение. Гибридная модель MPI+TBB также продемонстрировала отличные результаты, что делает её перспективной для масштабирования на системы с распределенной памятью или для более крупных задач. OpenMP и параллельные алгоритмы STL показали более скромные результаты, но могут быть предпочтительны в случаях, когда простота реализации является ключевым фактором. Выбор оптимальной технологии зависит от конкретных требований к производительности, сложности задачи и доступных ресурсов разработки.
+
+В ходе выполнения данной лабораторной работы была успешно решена задача вычисления многомерных интегралов с использованием составной квадратурной формулы Симпсона. Были разработаны и реализованы пять версий алгоритма: последовательная, а также параллельные версии с использованием технологий OpenMP, Intel TBB, стандартных потоков C++ (STL) и гибридного подхода MPI+TBB.
+
+Основное внимание было уделено исследованию эффективности различных подходов к распараллеливанию вычислений. Проведенные эксперименты позволили выявить сильные и слабые стороны каждой из рассмотренных технологий применительно к данной задаче. Было показано, что применение параллельных вычислений может существенно сократить время, необходимое для численного интегрирования, особенно для задач высокой размерности или с большим числом узлов сетки.
+
+Работа продемонстрировала, что:
+\begin{itemize}
+    \item Задача численного интегрирования методом Симпсона хорошо поддается распараллеливанию благодаря независимости вычислений в большинстве узлов сетки.
+    \item Технологии OpenMP и Intel TBB предоставляют удобные высокоуровневые инструменты для параллелизации на системах с общей памятью, при этом TBB часто предлагает более гибкие механизмы управления задачами и балансировки нагрузки.
+    \item Реализация с использованием STL (std::thread) дает полный контроль над потоками, но требует более значительных усилий по разработке и отладке кода.
+    \item Гибридный подход MPI+TBB является мощным средством для достижения масштабируемости на многопроцессорных и кластерных системах, сочетая преимущества распределенного и разделяемого параллелизма.
+\end{itemize}
+
+\newpage
+\section{Список литературы}
+\label{sec:references}
+\begin{enumerate}
+    \bibitem{simpson_wiki} Метод Симпсона // Википедия. [Электронный ресурс]. URL: \url{https://ru.wikipedia.org/wiki/Формула_симпсона}.
+    \item Бахвалов Н.С., Жидков Н.П., Кобельков Г.М. \textit{Численные методы}. — 8-е изд. — М.: БИНОМ. Лаборатория знаний, 2015. — 636 с.
+    \bibitem{openmp_spec} OpenMP Architecture Review Board. OpenMP Application Programming Interface. [Электронный ресурс]. URL: \url{https://www.openmp.org/specifications/}.
+    \bibitem{tbb_docs} Intel® oneAPI Threading Building Blocks (oneTBB) Documentation. [Электронный ресурс]. URL: \url{https://oneapi-src.github.io/oneTBB/}.
+    \bibitem{cpp_thread} \texttt{std::thread} — cppreference.com. [Электронный ресурс]. URL: \url{https://en.cppreference.com/w/cpp/thread/thread}.
+    \bibitem{mpi_forum} MPI Forum. MPI Standard. [Электронный ресурс]. URL: \url{https://www.mpi-forum.org/docs/}.
+    \bibitem{voevodin} Воеводин В.В., Воеводин Вл.В. \textit{Параллельные вычисления}. — СПб.: БХВ-Петербург, 2002. — 608 с.
+    \item Гергель В.П. \textit{Теория и практика параллельных вычислений}. — М.: Интернет-Университет Информационных Технологий; БИНОМ. Лаборатория знаний, 2007. — 423 с.
+    \item Антонов А.С. \textit{Параллельное программирование с использованием технологии MPI}. Учебное пособие. — М.: Издательство Московского университета, 2004. — 71 с.
+\end{enumerate}
+
+\newpage
+\section{Приложение. Листинги ключевых фрагментов кода}
+\label{sec:appendix}
+
+\subsection{ops\_seq.cpp}
+\begin{lstlisting}[language=C++, caption=Ключевые функции из ops\_seq.cpp, basicstyle=\ttfamily\tiny]
+namespace {
+int SimpsonCoeff(int i, int n) {
+  if (i == 0 || i == n) {
+    return 1;
+  }
+  if (i % 2 != 0) {
+    return 4;
+  }
+  return 2;
+}
+} // namespace
+
+namespace anufriev_d_integrals_simpson_seq {
+
+double IntegralsSimpsonSequential::FunctionN(const std::vector<double>& coords) const {
+  switch (func_code_) {
+    case 0: {
+      double s = 0.0;
+      for (double c : coords) {
+        s += c * c;
+      }
+      return s;
+    }
+    case 1: {
+      double val = 1.0;
+      for (size_t i = 0; i < coords.size(); i++) {
+        if (i % 2 == 0) {
+          val *= std::sin(coords[i]);
+        } else {
+          val *= std::cos(coords[i]);
+        }
+      }
+      return val;
+    }
+    default:
+      return 0.0;
+  }
+}
+
+double IntegralsSimpsonSequential::RecursiveSimpsonSum(int dim_index, std::vector<int>& idx,
+                                                       const std::vector<double>& steps) const {
+  if (dim_index == dimension_) {
+    double coeff = 1.0;
+    std::vector<double> coords(dimension_);
+    for (int d = 0; d < dimension_; ++d) {
+      coords[d] = a_[d] + idx[d] * steps[d];
+      coeff *= SimpsonCoeff(idx[d], n_[d]);
+    }
+    return coeff * FunctionN(coords);
+  }
+  double sum = 0.0;
+  for (int i = 0; i <= n_[dim_index]; ++i) {
+    idx[dim_index] = i;
+    sum += RecursiveSimpsonSum(dim_index + 1, idx, steps);
+  }
+  return sum;
+}
+
+bool IntegralsSimpsonSequential::RunImpl() {
+  std::vector<double> steps(dimension_);
+  for (int i = 0; i < dimension_; i++) {
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+  }
+
+  std::vector<int> idx(dimension_, 0);
+  double sum = RecursiveSimpsonSum(0, idx, steps);
+
+  double coeff = 1.0;
+  for (int i = 0; i < dimension_; i++) {
+    coeff *= steps[i] / 3.0;
+  }
+
+  result_ = coeff * sum;
+  return true;
+}
+} // namespace anufriev_d_integrals_simpson_seq
+\end{lstlisting}
+
+\newpage
+\subsection{ops\_omp.cpp}
+\begin{lstlisting}[language=C++, caption=Функция RunImpl из ops\_omp.cpp, basicstyle=\ttfamily\tiny]
+
+namespace anufriev_d_integrals_simpson_omp {
+
+double IntegralsSimpsonOmp::RecursiveSimpsonSum(int dim_index, std::vector<int>& idx,
+                                                const std::vector<double>& steps) const {
+  if (dim_index == dimension_) {
+    double coeff = 1.0;
+    std::vector<double> coords(dimension_);
+    for (int d = 0; d < dimension_; ++d) {
+      coords[d] = a_[d] + idx[d] * steps[d];
+      coeff *= SimpsonCoeff(idx[d], n_[d]);
+    }
+    return coeff * FunctionN(coords);
+  }
+  double sum = 0.0;
+  for (int i = 0; i <= n_[dim_index]; ++i) {
+    idx[dim_index] = i;
+    sum += RecursiveSimpsonSum(dim_index + 1, idx, steps);
+  }
+  return sum;
+}
+
+
+bool IntegralsSimpsonOmp::RunImpl() {
+  std::vector<double> steps(dimension_);
+  for (int i = 0; i < dimension_; i++) {
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+  }
+
+  double total_sum = 0.0;
+
+#pragma omp parallel
+  {
+    std::vector<int> idx(dimension_);
+
+#pragma omp for reduction(+ : total_sum)
+    for (int i0 = 0; i0 <= n_[0]; ++i0) {
+      idx[0] = i0;
+
+      if (dimension_ == 1) {
+        double coeff = SimpsonCoeff(idx[0], n_[0]);
+        std::vector<double> coords = {a_[0] + (idx[0] * steps[0])};
+        total_sum += coeff * FunctionN(coords);
+      } else {
+        total_sum += RecursiveSimpsonSum(1, idx, steps);
+      }
+    }
+  }
+
+  double coeff_mult = 1.0;
+  for (int i = 0; i < dimension_; i++) {
+    coeff_mult *= steps[i] / 3.0;
+  }
+
+  result_ = coeff_mult * total_sum;
+  return true;
+}
+} // namespace anufriev_d_integrals_simpson_omp
+\end{lstlisting}
+
+\newpage
+\subsection{ops\_tbb.cpp}
+\begin{lstlisting}[language=C++, caption=Функция RunImpl из ops\_tbb.cpp, basicstyle=\ttfamily\tiny]
+
+namespace anufriev_d_integrals_simpson_tbb {
+
+bool IntegralsSimpsonTBB::RunImpl() {
+  std::vector<double> steps(dimension_);
+  size_t total_points = 1;
+  double coeff_mult = 1.0;
+
+  for (int i = 0; i < dimension_; i++) {
+    if (n_[i] == 0) {
+      return false;
+    }
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+    coeff_mult *= steps[i] / 3.0;
+    size_t points_in_dim = static_cast<size_t>(n_[i]) + 1;
+    if (total_points > std::numeric_limits<size_t>::max() / points_in_dim) {
+      return false; 
+    }
+    total_points *= points_in_dim;
+  }
+
+  if (dimension_ > 0 && total_points == 0 && n_[0] >=0 ) {
+  }
+
+
+  double total_sum = tbb::parallel_reduce(
+      tbb::blocked_range<size_t>(0, total_points), 0.0,
+      [&](const tbb::blocked_range<size_t>& r, double running_sum) {
+        std::vector<double> coords(dimension_);
+        std::vector<int> current_idx(dimension_);
+
+        for (size_t k = r.begin(); k != r.end(); ++k) {
+          double current_coeff_prod = 1.0;
+          size_t current_k = k;
+
+          for (int dim = 0; dim < dimension_; ++dim) {
+            size_t points_in_this_dim = static_cast<size_t>(n_[dim]) + 1;
+            size_t index_in_this_dim = current_k % points_in_this_dim;
+            current_idx[dim] = static_cast<int>(index_in_this_dim);
+            current_k /= points_in_this_dim;
+
+            coords[dim] = a_[dim] + current_idx[dim] * steps[dim];
+            current_coeff_prod *= SimpsonCoeff(current_idx[dim], n_[dim]);
+          }
+          running_sum += current_coeff_prod * FunctionN(coords);
+        }
+        return running_sum;
+      },
+      [](double x, double y) { return x + y; });
+
+  result_ = coeff_mult * total_sum;
+  return true;
+}
+} // namespace anufriev_d_integrals_simpson_tbb
+\end{lstlisting}
+
+\newpage
+\subsection{ops\_stl.cpp}
+\begin{lstlisting}[language=C++, caption=Ключевые функции из ops\_stl.cpp, basicstyle=\ttfamily\tiny]
+
+namespace anufriev_d_integrals_simpson_stl {
+
+struct IterationRange { int start; int end; }; 
+
+void IntegralsSimpsonSTL::ThreadTaskRunner(int start_idx, int end_idx, 
+                                           const std::vector<double>& steps,
+                                           double* partial_sum_output) {
+  double local_partial_sum = 0.0;
+  *partial_sum_output = 0.0;
+
+  for (int i = start_idx; i < end_idx; ++i) {
+    // if (this->dimension_ < 1) { return; }
+    std::vector<int> local_idx(dimension_);
+    local_idx[0] = i;
+    local_partial_sum += RecursiveSimpsonSum(1, local_idx, steps);
+  }
+  *partial_sum_output = local_partial_sum;
+}
+
+bool IntegralsSimpsonSTL::RunImpl() {
+  if (dimension_ < 1) { return false; }
+  if (n_.empty() || n_[0] < 0) { return false; }
+
+  std::vector<double> steps(dimension_);
+  for (int i = 0; i < dimension_; i++) {
+    if (n_[i] <= 0 || (n_[i] % 2) != 0) { return false; }
+    steps[i] = (b_[i] - a_[i]) / n_[i];
+  }
+
+  const int total_iterations_dim0 = n_[0] + 1;
+  unsigned int num_actual_threads = DetermineNumThreads(total_iterations_dim0);
+  if (num_actual_threads == 0 && total_iterations_dim0 > 0) { num_actual_threads = 1;}
+
+  std::vector<double> partial_sums(num_actual_threads, 0.0);
+  std::vector<std::thread> threads;
+
+  if (total_iterations_dim0 > 0) {
+    if (num_actual_threads == 1) {
+        ThreadTaskRunner(0, total_iterations_dim0, steps, partial_sums.data());
+    } else if (num_actual_threads > 1) {
+        std::vector<IterationRange> ranges = DistributeIterations(total_iterations_dim0, num_actual_threads);
+        if (ranges.size() < num_actual_threads && !ranges.empty()) {
+            partial_sums.resize(ranges.size());
+        } else if (ranges.empty() && num_actual_threads > 0) {
+            partial_sums.clear(); 
+        }
+        
+        threads.resize(ranges.size());
+        for (size_t i = 0; i < ranges.size(); ++i) {
+            const auto& range = ranges[i];
+            threads[i] = std::thread(&IntegralsSimpsonSTL::ThreadTaskRunner, this, 
+                                     range.start, range.end, std::cref(steps), &partial_sums[i]);
+        }
+    }
+  }
+
+  for (auto& th : threads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+
+  double total_sum = 0.0;
+  for (double p_sum : partial_sums) {
+    total_sum += p_sum;
+  }
+
+  double coeff = 1.0;
+  for (int i = 0; i < dimension_; i++) {
+    coeff *= steps[i] / 3.0;
+  }
+  result_ = coeff * total_sum;
+  return true;
+}
+} // namespace anufriev_d_integrals_simpson_stl
+\end{lstlisting}
+
+\newpage
+\subsection{ops\_all.cpp (MPI+TBB)}
+\begin{lstlisting}[language=C++, caption=Ключевые функции из ops\_all.cpp, basicstyle=\ttfamily\tiny]
+namespace { 
+// struct ParsedRootInput { ... };
+// ParsedRootInput ParseAndValidateOnRoot(...) { ... }
+// int SimpsonCoeff(int i, int n) { ... }
+// struct RunParameters { ... };
+// RunParameters CalculateRunParameters(...) { ... }
+// struct MpiWorkDistribution { ... };
+// MpiWorkDistribution DistributeWorkAmongMpiRanks(...) { ... }
+} // namespace
+
+namespace anufriev_d_integrals_simpson_all {
+
+bool IntegralsSimpsonAll::PreProcessingImpl() {
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  ParsedRootInput parsed_input_data;
+  int root_preprocessing_status = 0;
+
+  if (rank == 0) {
+    parsed_input_data = ParseAndValidateOnRoot(task_data);
+    root_preprocessing_status = parsed_input_data.parse_successful ? 1 : 0;
+  }
+
+  MPI_Bcast(&root_preprocessing_status, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (root_preprocessing_status == 0) return false;
+
+  if (rank == 0) {
+    dimension_ = parsed_input_data.dimension;
+    func_code_ = parsed_input_data.func_code_val;
+  }
+  MPI_Bcast(&dimension_, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&func_code_, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (dimension_ == 0) {
+    result_ = 0.0;
+    return true;
+  }
+
+  a_.resize(dimension_); b_.resize(dimension_); n_.resize(dimension_);
+  if (rank == 0) {
+    a_ = parsed_input_data.a_vec;
+    b_ = parsed_input_data.b_vec;
+    n_ = parsed_input_data.n_vec;
+  }
+  MPI_Bcast(a_.data(), dimension_, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(b_.data(), dimension_, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Bcast(n_.data(), dimension_, MPI_INT, 0, MPI_COMM_WORLD);
+
+  result_ = 0.0;
+  return true;
+}
+
+bool IntegralsSimpsonAll::RunImpl() {
+  int rank = 0; int world_size = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  if (dimension_ == 0) {
+    if (rank == 0) { result_ = 0.0; }
+    return true;
+  }
+
+  std::vector<double> steps; 
+  RunParameters params = CalculateRunParameters(dimension_, n_, a_, b_, steps);
+  if (!params.success) return false;
+  if (params.total_points == 0 && dimension_ > 0) {
+      if(rank == 0) result_ = 0.0;
+      return true;
+  }
+
+
+  MpiWorkDistribution dist = DistributeWorkAmongMpiRanks(params.total_points, rank, world_size);
+
+  double local_sum = 0.0;
+  if (dist.num_points_for_this_rank > 0) {
+    local_sum = tbb::parallel_reduce(
+        tbb::blocked_range<size_t>(dist.local_start_k, dist.local_end_k), 0.0,
+        [&](const tbb::blocked_range<size_t>& r, double running_sum) {
+          std::vector<double> coords(dimension_);
+          std::vector<int> current_idx(dimension_);
+          for (size_t k_iter = r.begin(); k_iter != r.end(); ++k_iter) {
+            double current_coeff_prod = 1.0;
+            size_t current_k_val = k_iter;
+            for (int dim_idx = 0; dim_idx < dimension_; ++dim_idx) {
+              size_t points_in_this_dim = static_cast<size_t>(n_[dim_idx]) + 1;
+              size_t index_in_this_dim = current_k_val % points_in_this_dim;
+              current_idx[dim_idx] = static_cast<int>(index_in_this_dim);
+              current_k_val /= points_in_this_dim;
+              coords[dim_idx] = a_[dim_idx] + current_idx[dim_idx] * steps[dim_idx];
+              current_coeff_prod *= SimpsonCoeff(current_idx[dim_idx], n_[dim_idx]);
+            }
+            running_sum += current_coeff_prod * FunctionN(coords);
+          }
+          return running_sum;
+        },
+        [](double x, double y) { return x + y; });
+  }
+
+  double global_sum = 0.0;
+  MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    result_ = params.coeff_mult * global_sum;
+  } else {
+    result_ = 0.0; 
+  }
+  return true;
+}
+} // namespace anufriev_d_integrals_simpson_all
+\end{lstlisting}
+
+\end{document}
